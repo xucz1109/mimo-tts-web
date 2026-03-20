@@ -10,6 +10,7 @@
  */
 
 const express = require('express');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -59,29 +60,28 @@ function getApiKey() {
 }
 
 // ── WAV builder (wrap raw PCM into WAV) ────────────────────────────────────
-function buildWav(pcmBuffer, sampleRate = 24000, bitsPerSample = 16, channels = 1) {
+const SAMPLE_RATE = 24000;
+const BITS_PER_SAMPLE = 16;
+const CHANNELS = 1;
+
+function buildWav(pcmBuffer, sampleRate = SAMPLE_RATE, bitsPerSample = BITS_PER_SAMPLE, channels = CHANNELS) {
   const byteRate = sampleRate * channels * bitsPerSample / 8;
   const blockAlign = channels * bitsPerSample / 8;
   const dataSize = pcmBuffer.length;
   const headerSize = 44;
   const buf = Buffer.alloc(headerSize + dataSize);
 
-  // RIFF header
   buf.write('RIFF', 0);
   buf.writeUInt32LE(36 + dataSize, 4);
   buf.write('WAVE', 8);
-
-  // fmt sub-chunk
   buf.write('fmt ', 12);
-  buf.writeUInt32LE(16, 16);          // sub-chunk size
-  buf.writeUInt16LE(1, 20);           // PCM format
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
   buf.writeUInt16LE(channels, 22);
   buf.writeUInt32LE(sampleRate, 24);
   buf.writeUInt32LE(byteRate, 28);
   buf.writeUInt16LE(blockAlign, 32);
   buf.writeUInt16LE(bitsPerSample, 34);
-
-  // data sub-chunk
   buf.write('data', 36);
   buf.writeUInt32LE(dataSize, 40);
   pcmBuffer.copy(buf, headerSize);
@@ -89,15 +89,28 @@ function buildWav(pcmBuffer, sampleRate = 24000, bitsPerSample = 16, channels = 
   return buf;
 }
 
+// Generate silent WAV of given duration (ms)
+function buildSilenceWav(durationMs, sampleRate = SAMPLE_RATE) {
+  const numSamples = Math.floor(sampleRate * durationMs / 1000);
+  const pcmBuffer = Buffer.alloc(numSamples * 2); // 16-bit = 2 bytes per sample
+  return buildWav(pcmBuffer, sampleRate);
+}
+
+// Extract PCM data from WAV buffer (skip 44-byte header)
+function extractPcm(wavBuffer) {
+  if (wavBuffer.slice(0, 4).toString() === 'RIFF') {
+    return wavBuffer.slice(44);
+  }
+  return wavBuffer;
+}
+
 // ── Core TTS function ──────────────────────────────────────────────────────
-async function callTTS({ text, style, apiKey, voiceAudioBase64 }) {
+async function callTTS({ text, style, apiKey, voiceAudioBase64, speed, pitch, volume }) {
   const endpoint = process.env.MIMO_API_ENDPOINT || 'https://api.xiaomimimo.com/v1/chat/completions';
   const model = process.env.MIMO_TTS_MODEL || 'mimo-v2-audio-tts';
 
-  // Build content with style tag
   const content = style ? `<style>${style}</style>${text}` : text;
 
-  // Build request body
   const body = {
     model,
     messages: [{ role: 'assistant', content }],
@@ -108,6 +121,11 @@ async function callTTS({ text, style, apiKey, voiceAudioBase64 }) {
   } else {
     body.audio = { format: 'wav', voice: 'mimo_default' };
   }
+
+  // Pass audio params if provided
+  if (speed && speed !== 1) body.audio.speed = speed;
+  if (pitch && pitch !== 0) body.audio.pitch = pitch;
+  if (volume && volume !== 100) body.audio.volume = volume;
 
   const resp = await fetch(endpoint, {
     method: 'POST',
@@ -138,7 +156,6 @@ async function callTTS({ text, style, apiKey, voiceAudioBase64 }) {
     throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
   }
 
-  // Extract audio data
   const audioData = data?.choices?.[0]?.message?.audio?.data;
   if (!audioData) {
     throw new Error('Unexpected API response: no audio data found');
@@ -146,12 +163,68 @@ async function callTTS({ text, style, apiKey, voiceAudioBase64 }) {
 
   const raw = Buffer.from(audioData, 'base64');
 
-  // Check if already WAV (RIFF header) or raw PCM
   if (raw.slice(0, 4).toString() === 'RIFF') {
     return raw;
   }
-  // Wrap raw PCM into WAV
   return buildWav(raw);
+}
+
+// ── Paragraph pause: synthesize segments with silence between ───────────────
+async function callTTSWithPause({ text, style, apiKey, voiceAudioBase64, pauseMs, speed, pitch, volume }) {
+  const segments = text.split(/\n/).filter(s => s.trim().length > 0);
+
+  if (segments.length <= 1) {
+    return callTTS({ text, style, apiKey, voiceAudioBase64, speed, pitch, volume });
+  }
+
+  const silenceWav = buildSilenceWav(pauseMs);
+  const silencePcm = extractPcm(silenceWav);
+  const parts = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const wav = await callTTS({
+      text: segments[i].trim(),
+      style,
+      apiKey,
+      voiceAudioBase64,
+      speed,
+      pitch,
+      volume,
+    });
+    parts.push(extractPcm(wav));
+
+    if (i < segments.length - 1) {
+      parts.push(silencePcm);
+    }
+  }
+
+  const combinedPcm = Buffer.concat(parts);
+  return buildWav(combinedPcm);
+}
+
+// ── Convert WAV to MP3 via ffmpeg ──────────────────────────────────────────
+function convertToMp3(wavBuffer) {
+  const tmpDir = os.tmpdir();
+  const id = crypto.randomUUID();
+  const wavPath = path.join(tmpDir, `conv_${id}.wav`);
+  const mp3Path = path.join(tmpDir, `conv_${id}.mp3`);
+
+  try {
+    fs.writeFileSync(wavPath, wavBuffer);
+    execFileSync('ffmpeg', [
+      '-y', '-i', wavPath,
+      '-codec:a', 'libmp3lame',
+      '-b:a', '128k',
+      '-ar', '24000',
+      '-ac', '1',
+      mp3Path,
+    ], { timeout: 30000, stdio: 'pipe' });
+
+    return fs.readFileSync(mp3Path);
+  } finally {
+    try { fs.unlinkSync(wavPath); } catch {}
+    try { fs.unlinkSync(mp3Path); } catch {}
+  }
 }
 
 // ── Resolve singing lyrics ─────────────────────────────────────────────────
@@ -159,9 +232,7 @@ function resolveLyrics(text) {
   if (text.startsWith('LYRICS:')) {
     return text.slice(7);
   }
-  // Direct lookup
   if (singDict[text]) return singDict[text];
-  // Fuzzy match
   for (const [key, lyrics] of Object.entries(singDict)) {
     if (key.includes(text) || text.includes(key)) return lyrics;
   }
@@ -171,7 +242,13 @@ function resolveLyrics(text) {
 // ── TTS endpoint ───────────────────────────────────────────────────────────
 app.post('/api/tts', async (req, res) => {
   try {
-    const { text, style, voiceAudioBase64, apiKey: bodyApiKey } = req.body;
+    const {
+      text, style, voiceAudioBase64,
+      apiKey: bodyApiKey,
+      speed, pitch, volume,
+      pauseMs,
+      format,
+    } = req.body;
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ error: 'text is required' });
@@ -180,43 +257,40 @@ app.post('/api/tts', async (req, res) => {
       return res.status(400).json({ error: 'text too long (max 10000 chars)' });
     }
 
-    // Priority: request body > env var > openclaw config
     const apiKey = (bodyApiKey && bodyApiKey.trim()) || getApiKey();
     if (!apiKey) {
       return res.status(400).json({ error: 'API Key 未配置，请在页面输入 MiMo API Key' });
     }
 
-    // Handle singing mode
     let finalText = text.trim();
     let finalStyle = style;
     if (style === '唱歌') {
       const lyrics = resolveLyrics(finalText);
-      if (lyrics) {
-        finalText = lyrics;
-      }
-      // If no lyrics found and not prefixed with LYRICS:, let it through as-is
+      if (lyrics) finalText = lyrics;
     }
 
     const id = crypto.randomUUID();
-    const tmpDir = os.tmpdir();
-
-    // Voice clone: write temp wav file, read as base64
-    let voiceB64 = voiceAudioBase64 || null;
-    if (!voiceB64) {
-      // Check if a voice sample file was provided via multipart or other means
-      // (not applicable in current JSON API, but placeholder for future)
-    }
+    const voiceB64 = voiceAudioBase64 || null;
+    const pause = Math.max(0, Math.min(5000, parseInt(pauseMs) || 0));
+    const outFormat = format === 'mp3' ? 'mp3' : 'wav';
 
     let wavBuffer;
     try {
-      wavBuffer = await callTTS({
-        text: finalText,
-        style: finalStyle,
-        apiKey,
-        voiceAudioBase64: voiceB64,
-      });
+      if (pause > 0) {
+        wavBuffer = await callTTSWithPause({
+          text: finalText, style, apiKey,
+          voiceAudioBase64: voiceB64,
+          pauseMs: pause,
+          speed, pitch, volume,
+        });
+      } else {
+        wavBuffer = await callTTS({
+          text: finalText, style, apiKey,
+          voiceAudioBase64: voiceB64,
+          speed, pitch, volume,
+        });
+      }
     } catch (err) {
-      // Friendly error messages for common API errors
       let userMsg = err.message;
       const status = err.httpStatus;
       if (status === 402 || userMsg.includes('insufficient_balance') || userMsg.includes('Insufficient')) {
@@ -233,11 +307,29 @@ app.post('/api/tts', async (req, res) => {
       return res.status(500).json({ error: 'TTS returned empty audio' });
     }
 
+    // Convert to MP3 if requested
+    let finalBuffer = wavBuffer;
+    let ext = 'wav';
+    let mimeType = 'audio/wav';
+
+    if (outFormat === 'mp3') {
+      try {
+        finalBuffer = convertToMp3(wavBuffer);
+        ext = 'mp3';
+        mimeType = 'audio/mpeg';
+      } catch (err) {
+        console.error('MP3 conversion failed:', err.message);
+        // Fall back to WAV
+      }
+    }
+
     return res.json({
       success: true,
-      audio: wavBuffer.toString('base64'),
-      size: wavBuffer.length,
-      filename: `tts_${id}.wav`,
+      audio: finalBuffer.toString('base64'),
+      size: finalBuffer.length,
+      filename: `tts_${id}.${ext}`,
+      format: ext,
+      mimeType,
     });
   } catch (err) {
     console.error('TTS error:', err);
