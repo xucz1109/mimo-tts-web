@@ -280,6 +280,40 @@
       margin-bottom: 6px; display: flex; align-items: center; gap: 4px;
     }
     .chip-group { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    /* ── Role Preset Cards ── */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .preset-card {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 2px;
+      padding: 8px 4px;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+      text-align: center;
+    }
+    .preset-card:hover {
+      border-color: var(--accent);
+      background: var(--accent-light);
+      transform: translateY(-1px);
+    }
+    .preset-card.active {
+      border-color: var(--accent);
+      background: var(--accent);
+      box-shadow: 0 2px 8px rgba(108,92,231,0.25);
+    }
+    .preset-card.active .preset-name { color: #fff; }
+    .preset-card.active .preset-icon { filter: brightness(1.2); }
+    .preset-icon { font-size: 1.2rem; line-height: 1; }
+    .preset-name { font-size: 0.68rem; color: var(--muted); font-weight: 600; line-height: 1.2; }
+
     .chip {
       padding: 5px 12px;
       background: var(--bg);
@@ -740,6 +774,84 @@
     <div class="card">
       <div class="card-title"><span class="icon">🎨</span> 音色与风格</div>
 
+      <!-- Role Presets -->
+      <div class="style-section" id="rolePresetSection">
+        <div class="style-section-title">🎭 角色预设
+          <span style="margin-left:auto; font-size:0.68rem; color:var(--muted); font-weight:400;">选择预设自动配置下方参数</span>
+        </div>
+        <div class="preset-grid" id="rolePresetGrid">
+          <div class="preset-card active" data-preset="" onclick="selectPreset(this)">
+            <span class="preset-icon">🔊</span>
+            <span class="preset-name">默认</span>
+          </div>
+          <div class="preset-card" data-preset="wukong" onclick="selectPreset(this)">
+            <span class="preset-icon">🐵</span>
+            <span class="preset-name">孙悟空</span>
+          </div>
+          <div class="preset-card" data-preset="news_anchor" onclick="selectPreset(this)">
+            <span class="preset-icon">📺</span>
+            <span class="preset-name">新闻主播</span>
+          </div>
+          <div class="preset-card" data-preset="teacher" onclick="selectPreset(this)">
+            <span class="preset-icon">📚</span>
+            <span class="preset-name">温柔老师</span>
+          </div>
+          <div class="preset-card" data-preset="general" onclick="selectPreset(this)">
+            <span class="preset-icon">⚔️</span>
+            <span class="preset-name">威武将军</span>
+          </div>
+          <div class="preset-card" data-preset="child" onclick="selectPreset(this)">
+            <span class="preset-icon">🧒</span>
+            <span class="preset-name">可爱小孩</span>
+          </div>
+          <div class="preset-card" data-preset="dongbei" onclick="selectPreset(this)">
+            <span class="preset-icon">🌲</span>
+            <span class="preset-name">东北大哥</span>
+          </div>
+          <div class="preset-card" data-preset="sichuan" onclick="selectPreset(this)">
+            <span class="preset-icon">🌶️</span>
+            <span class="preset-name">四川妹子</span>
+          </div>
+          <div class="preset-card" data-preset="cantonese" onclick="selectPreset(this)">
+            <span class="preset-icon">🥟</span>
+            <span class="preset-name">广东靓仔</span>
+          </div>
+          <div class="preset-card" data-preset="taiwan" onclick="selectPreset(this)">
+            <span class="preset-icon">🧋</span>
+            <span class="preset-name">台湾甜妹</span>
+          </div>
+          <div class="preset-card" data-preset="whisper" onclick="selectPreset(this)">
+            <span class="preset-icon">🤫</span>
+            <span class="preset-name">温柔低语</span>
+          </div>
+          <div class="preset-card" data-preset="lover" onclick="selectPreset(this)">
+            <span class="preset-icon">💕</span>
+            <span class="preset-name">深情恋人</span>
+          </div>
+          <div class="preset-card" data-preset="lazy" onclick="selectPreset(this)">
+            <span class="preset-icon">😴</span>
+            <span class="preset-name">慵懒猫咪</span>
+          </div>
+          <div class="preset-card" data-preset="coquetry" onclick="selectPreset(this)">
+            <span class="preset-icon">🥰</span>
+            <span class="preset-name">撒娇达人</span>
+          </div>
+          <div class="preset-card" data-preset="sad_poet" onclick="selectPreset(this)">
+            <span class="preset-icon">😢</span>
+            <span class="preset-name">忧郁诗人</span>
+          </div>
+          <div class="preset-card" data-preset="emperor" onclick="selectPreset(this)">
+            <span class="preset-icon">👑</span>
+            <span class="preset-name">霸气帝王</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div style="border-top:1px solid var(--border); margin:8px 0 12px; font-size:0.7rem; color:var(--muted); text-align:center; line-height:1;">
+        <span style="background:var(--card); padding:0 8px; position:relative; top:-6px;">手动微调</span>
+      </div>
+
       <!-- Emotion -->
       <div class="style-section">
         <div class="style-section-title">😊 情绪</div>
@@ -1080,6 +1192,26 @@ with open("output.wav", "wb") as f:
   let outputFormat = 'wav';
   let isSinging = false;
 
+  // ── Role Presets ──
+  const rolePresets = {
+    '':             { emotion: '',          dialect: '',       role: '',                tone: '' },
+    'wukong':       { emotion: '生气',      dialect: '',       role: '孙悟空',          tone: '大声喊' },
+    'news_anchor':  { emotion: '平静',      dialect: '',       role: '像个新闻主播',    tone: '清晰有力' },
+    'teacher':      { emotion: '平静',      dialect: '',       role: '像个老师',        tone: '' },
+    'general':      { emotion: '生气',      dialect: '',       role: '像个大将军',      tone: '大声喊' },
+    'child':        { emotion: '开心',      dialect: '',       role: '像个小孩',        tone: '' },
+    'dongbei':      { emotion: '开心',      dialect: '东北话', role: '',                tone: '大声喊' },
+    'sichuan':      { emotion: '开心',      dialect: '四川话', role: '',                tone: '' },
+    'cantonese':    { emotion: '',          dialect: '粤语',   role: '',                tone: '' },
+    'taiwan':       { emotion: '撒娇 夹子音', dialect: '台湾腔', role: '',              tone: '' },
+    'whisper':      { emotion: '平静',      dialect: '',       role: '',                tone: '悄悄话' },
+    'lover':        { emotion: '深情款款',  dialect: '',       role: '',                tone: '' },
+    'lazy':         { emotion: '慵懒 刚睡醒', dialect: '',     role: '',                tone: '' },
+    'coquetry':     { emotion: '撒娇 夹子音', dialect: '',     role: '',                tone: '' },
+    'sad_poet':     { emotion: '悲伤',      dialect: '',       role: '',                tone: '' },
+    'emperor':      { emotion: '生气',      dialect: '',       role: '像个大将军',      tone: '清晰有力' },
+  };
+
   // ── Init ──
   document.addEventListener('DOMContentLoaded', () => {
     initChips();
@@ -1227,6 +1359,8 @@ with open("output.wav", "wb") as f:
         // Select as global style
         document.getElementById(id).querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
         chip.classList.add('active');
+        // Deselect preset (manual override)
+        deselectPreset();
         // Also insert [tag] into textarea if it has a data-insert value
         const insertVal = chip.dataset.insert;
         if (insertVal) {
@@ -1247,6 +1381,35 @@ with open("output.wav", "wb") as f:
       } else {
         document.getElementById('singInput').placeholder = '输入歌词或选择预置歌曲…';
       }
+    });
+  }
+
+  // ── Role Preset Selection ──
+  function selectPreset(el) {
+    const presetId = el.dataset.preset;
+    const preset = rolePresets[presetId];
+    if (!preset) return;
+
+    // Update preset cards active state
+    document.querySelectorAll('#rolePresetGrid .preset-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+
+    // Apply preset to individual chips
+    setChipValue('emotionChips', preset.emotion);
+    setChipValue('dialectChips', preset.dialect);
+    setChipValue('roleChips', preset.role);
+    setChipValue('toneChips', preset.tone);
+  }
+
+  function deselectPreset() {
+    document.querySelectorAll('#rolePresetGrid .preset-card').forEach(c => c.classList.remove('active'));
+    // Don't auto-select "自定义", just leave nothing selected visually
+  }
+
+  function setChipValue(groupId, value) {
+    const group = document.getElementById(groupId);
+    group.querySelectorAll('.chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.value === value);
     });
   }
   function getChipValue(groupId) {
