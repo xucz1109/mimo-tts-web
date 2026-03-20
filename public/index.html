@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MiMo TTS — 文字转语音</title>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --card: #1a1a24;
+      --border: #2a2a3a;
+      --text: #e8e8f0;
+      --muted: #8888aa;
+      --accent: #7c5cfc;
+      --accent-hover: #6a48e8;
+      --danger: #ff4466;
+      --success: #34d399;
+      --radius: 12px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #7c5cfc, #b68afe);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 6px;
+    }
+    .header p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+
+    /* Labels */
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Textarea */
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      background: #12121a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      line-height: 1.6;
+      padding: 14px;
+      resize: vertical;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    textarea::placeholder {
+      color: #555570;
+    }
+
+    .char-count {
+      text-align: right;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+
+    /* Row */
+    .row {
+      display: flex;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .row > * { flex: 1; }
+
+    /* Select */
+    select {
+      width: 100%;
+      background: #12121a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 10px 14px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      cursor: pointer;
+    }
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 28px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      width: 100%;
+    }
+    .btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+    .btn:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 500;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #22223a;
+      border-color: var(--accent);
+    }
+
+    /* Result */
+    .result {
+      display: none;
+    }
+    .result.show {
+      display: block;
+    }
+
+    .audio-player {
+      width: 100%;
+      margin: 16px 0;
+      border-radius: 8px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+    }
+    .actions .btn,
+    .actions .btn-secondary {
+      flex: 1;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+    }
+
+    /* Loading */
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 32px;
+    }
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    /* Error */
+    .error {
+      display: none;
+      background: #2a1020;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--danger);
+      font-size: 0.9rem;
+      margin-top: 12px;
+    }
+    .error.show {
+      display: block;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 12px;
+    }
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎙️ MiMo TTS</h1>
+      <p>输入文字，生成语音，试听并下载</p>
+    </div>
+
+    <div class="card">
+      <label for="textInput">输入文本</label>
+      <textarea
+        id="textInput"
+        placeholder="在这里输入你想转换为语音的文字…"
+        maxlength="10000"
+      ></textarea>
+      <div class="char-count"><span id="charCount">0</span> / 10000</div>
+
+      <div class="row">
+        <div>
+          <label for="styleSelect">语音风格</label>
+          <select id="styleSelect">
+            <option value="">默认（自然语音）</option>
+            <option value="开心">😊 开心</option>
+            <option value="悲伤">😢 悲伤</option>
+            <option value="生气">😠 生气</option>
+            <option value="平静">😌 平静</option>
+            <option value="语速慢">🐢 语速慢</option>
+            <option value="语速快">🐇 语速快</option>
+            <option value="悄悄话">🤫 悄悄话</option>
+            <option value="清晰有力">📢 清晰有力</option>
+            <option value="慵懒 刚睡醒">😴 慵懒 刚睡醒</option>
+            <option value="撒娇 夹子音">🥰 撒娇</option>
+            <option value="深情款款 语速慢">💕 深情款款</option>
+            <option value="像个大将军">⚔️ 像个大将军</option>
+            <option value="像个小孩">🧒 像个小孩</option>
+            <option value="东北话">🌲 东北话</option>
+            <option value="四川话">🌶️ 四川话</option>
+            <option value="台湾腔">🧋 台湾腔</option>
+            <option value="粤语">🥟 粤语</option>
+            <option value="custom">✏️ 自定义…</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="customStyleRow" class="row" style="display:none; margin-top:12px">
+        <div>
+          <label for="customStyle">自定义风格</label>
+          <input
+            type="text"
+            id="customStyle"
+            placeholder="如：语速慢 清晰 像个新闻主播"
+            style="
+              width: 100%;
+              background: #12121a;
+              border: 1px solid var(--border);
+              border-radius: 8px;
+              color: var(--text);
+              font-size: 0.95rem;
+              padding: 10px 14px;
+              font-family: inherit;
+            "
+          />
+        </div>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button class="btn" id="generateBtn" onclick="generate()">
+          🎵 生成语音
+        </button>
+      </div>
+
+      <div class="error" id="errorMsg"></div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>正在生成语音，请稍候…</p>
+    </div>
+
+    <!-- Result -->
+    <div class="card result" id="result">
+      <label>🎧 生成结果</label>
+      <audio id="audioPlayer" class="audio-player" controls></audio>
+      <div class="actions">
+        <button class="btn-secondary" onclick="playAgain()">🔄 重新播放</button>
+        <button class="btn" onclick="download()">⬇️ 下载 WAV</button>
+      </div>
+    </div>
+
+    <div class="footer">
+      Powered by <a href="https://xiaomimimo.com" target="_blank">MiMo v2 TTS</a>
+    </div>
+  </div>
+
+  <script>
+    const textInput = document.getElementById('textInput');
+    const charCount = document.getElementById('charCount');
+    const styleSelect = document.getElementById('styleSelect');
+    const customStyleRow = document.getElementById('customStyleRow');
+    const customStyle = document.getElementById('customStyle');
+    const generateBtn = document.getElementById('generateBtn');
+    const loading = document.getElementById('loading');
+    const resultCard = document.getElementById('result');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const errorMsg = document.getElementById('errorMsg');
+
+    let currentBlobUrl = null;
+    let currentFilename = 'tts_output.wav';
+
+    // Char counter
+    textInput.addEventListener('input', () => {
+      charCount.textContent = textInput.value.length;
+    });
+
+    // Toggle custom style input
+    styleSelect.addEventListener('change', () => {
+      customStyleRow.style.display = styleSelect.value === 'custom' ? 'flex' : 'none';
+    });
+
+    // Get current style
+    function getStyle() {
+      if (styleSelect.value === 'custom') {
+        return customStyle.value.trim();
+      }
+      return styleSelect.value;
+    }
+
+    // Show error
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('show');
+      setTimeout(() => errorMsg.classList.remove('show'), 8000);
+    }
+
+    // Generate TTS
+    async function generate() {
+      const text = textInput.value.trim();
+      if (!text) {
+        showError('请输入文字');
+        return;
+      }
+
+      const style = getStyle();
+
+      // UI state
+      generateBtn.disabled = true;
+      loading.classList.add('show');
+      resultCard.classList.remove('show');
+      errorMsg.classList.remove('show');
+
+      try {
+        const res = await fetch('/api/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, style }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+
+        // Decode base64 → blob
+        const byteChars = atob(data.audio);
+        const byteArray = new Uint8Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) {
+          byteArray[i] = byteChars.charCodeAt(i);
+        }
+        const blob = new Blob([byteArray], { type: 'audio/wav' });
+
+        // Revoke old blob URL
+        if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+
+        currentBlobUrl = URL.createObjectURL(blob);
+        currentFilename = data.filename || 'tts_output.wav';
+
+        audioPlayer.src = currentBlobUrl;
+        audioPlayer.play().catch(() => {});
+        resultCard.classList.add('show');
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        generateBtn.disabled = false;
+        loading.classList.remove('show');
+      }
+    }
+
+    function playAgain() {
+      audioPlayer.currentTime = 0;
+      audioPlayer.play().catch(() => {});
+    }
+
+    function download() {
+      if (!currentBlobUrl) return;
+      const a = document.createElement('a');
+      a.href = currentBlobUrl;
+      a.download = currentFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    // Ctrl+Enter to generate
+    textInput.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        generate();
+      }
+    });
+  </script>
+</body>
+</html>

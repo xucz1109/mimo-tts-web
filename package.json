@@ -1,0 +1,15 @@
+{
+  "name": "mimo-tts-web",
+  "version": "1.0.0",
+  "description": "Web interface for MiMo v2 Text-to-Speech — generate speech from text, play and download WAV files.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "keywords": ["tts", "text-to-speech", "mimo", "voice", "audio"],
+  "license": "MIT"
+}
