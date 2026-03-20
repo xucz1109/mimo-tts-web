@@ -376,6 +376,21 @@
   <!-- ══════════ Tab: TTS ══════════ -->
   <div class="tab-panel active" id="panel-tts">
 
+    <!-- API Key -->
+    <div class="card" id="apiKeyCard">
+      <div class="card-title"><span class="icon">🔑</span> API Key 配置</div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <input type="password" id="apiKeyInput" placeholder="输入你的 MiMo API Key (api-key)" style="flex:1;" autocomplete="off" />
+        <button class="btn btn-outline btn-sm" style="width:auto; white-space:nowrap;" onclick="toggleKeyVisibility()">
+          <span id="keyEyeIcon">👁️</span>
+        </button>
+        <button class="btn btn-sm" style="width:auto; white-space:nowrap;" onclick="saveApiKey()">保存</button>
+      </div>
+      <div id="apiKeyStatus" style="font-size:0.78rem; margin-top:8px; color:var(--muted);">
+        API Key 仅保存在浏览器本地，不会上传到服务器
+      </div>
+    </div>
+
     <!-- Text Input -->
     <div class="card">
       <div class="card-title"><span class="icon">📝</span> 输入文本</div>
@@ -722,6 +737,7 @@ with open("output.wav", "wb") as f:
   document.addEventListener('DOMContentLoaded', () => {
     initChips();
     renderHistory();
+    loadApiKey();
   });
 
   // ── Tab Switching ──
@@ -730,6 +746,35 @@ with open("output.wav", "wb") as f:
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
     document.getElementById(`panel-${tab}`).classList.add('active');
+  }
+
+  // ── API Key Management ──
+  function loadApiKey() {
+    const saved = localStorage.getItem('mimo_api_key');
+    if (saved) {
+      document.getElementById('apiKeyInput').value = saved;
+      document.getElementById('apiKeyStatus').innerHTML = '<span style="color:var(--success)">✅ API Key 已加载</span>';
+    }
+  }
+  function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (!key) {
+      document.getElementById('apiKeyStatus').innerHTML = '<span style="color:var(--danger)">请输入 API Key</span>';
+      return;
+    }
+    localStorage.setItem('mimo_api_key', key);
+    document.getElementById('apiKeyStatus').innerHTML = '<span style="color:var(--success)">✅ API Key 已保存到浏览器</span>';
+  }
+  function toggleKeyVisibility() {
+    const input = document.getElementById('apiKeyInput');
+    const icon = document.getElementById('keyEyeIcon');
+    if (input.type === 'password') {
+      input.type = 'text';
+      icon.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      icon.textContent = '👁️';
+    }
   }
 
   // ── Chip Selection ──
@@ -898,6 +943,10 @@ with open("output.wav", "wb") as f:
     }
 
     const body = { text, style: style || undefined };
+
+    // Include API key from page input
+    const pageApiKey = document.getElementById('apiKeyInput').value.trim();
+    if (pageApiKey) body.apiKey = pageApiKey;
 
     generateBtn.disabled = true;
     loadingEl.classList.add('show');

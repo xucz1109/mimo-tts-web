@@ -61,13 +61,9 @@ npm install
 
 ### 2. 配置 API Key
 
-**方式 A：环境变量**
-```bash
-export MIMO_API_KEY="your-api-key-here"
-```
+启动后，在页面顶部的 **API Key 配置** 输入框中填入你的 MiMo API Key，点击「保存」即可。Key 会保存在浏览器本地（localStorage），不会上传到服务器。
 
-**方式 B：OpenClaw 自动读取**
-> 如果已安装 OpenClaw，自动从 `~/.openclaw/openclaw.json` 读取
+> 也可通过环境变量 `MIMO_API_KEY` 配置，或自动从 `~/.openclaw/openclaw.json` 读取（优先级：页面输入 > 环境变量 > OpenClaw 配置）
 
 ### 3. 启动
 ```bash

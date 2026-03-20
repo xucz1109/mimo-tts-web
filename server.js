@@ -52,7 +52,7 @@ function getApiKey() {
 // ── TTS endpoint ───────────────────────────────────────────────────────────
 app.post('/api/tts', async (req, res) => {
   try {
-    const { text, style, voiceAudioBase64 } = req.body;
+    const { text, style, voiceAudioBase64, apiKey: bodyApiKey } = req.body;
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return res.status(400).json({ error: 'text is required' });
@@ -61,9 +61,10 @@ app.post('/api/tts', async (req, res) => {
       return res.status(400).json({ error: 'text too long (max 10000 chars)' });
     }
 
-    const apiKey = getApiKey();
+    // Priority: request body > env var > openclaw config
+    const apiKey = (bodyApiKey && bodyApiKey.trim()) || getApiKey();
     if (!apiKey) {
-      return res.status(500).json({ error: 'MIMO_API_KEY not configured' });
+      return res.status(400).json({ error: 'API Key 未配置，请在页面输入 MiMo API Key' });
     }
 
     const id = crypto.randomUUID();
